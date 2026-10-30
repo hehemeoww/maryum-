@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
+    <script>
+        // 🐱 Cat vs Mice — a p5.js game
+// Move your mouse to move the cat. Click a mouse to catch it.
+// Every catch = +1 score. If a mouse escapes, your score resets to 0!
+
+let score = 0;
+let bestScore = 0;
+let mice = [];
+let nextSpawn = 0;
+let missFlash = 0;     // frames left of the red "missed" flash
+let pounce = 0;        // frames left of the cat's pounce animation
+let popups = [];       // little "+1" texts
+
+function setup() {
+  createCanvas(1900,900);
+  textFont("Arial");
+  noCursor();
+  nextSpawn = millis() + 800;
+}
+
+function draw() {
+  background(missFlash > 0 ? color(255, 190, 190) : color(196, 232, 170));
+  if (missFlash > 0) missFlash--;
+
+  // grass decoration
+  stroke(150, 205, 120);
+  strokeWeight(2);
+  for (let x = 10; x < width; x += 28) {
+    line(x, height, x - 4, height - 14);
+    line(x, height, x + 4, height - 12);
+  }
+
+  // difficulty rises as the score goes up
+  let lifeTime = max(900, 2200 - score * 60);   // how long a mouse stays (ms)
+  let spawnGap = max(450, 1300 - score * 35);   // time between mice (ms)
+
+  // spawn new mice at random spots
+  if (millis() > nextSpawn) {
+    spawnMouse(lifeTime);
+    nextSpawn = millis() + random(spawnGap * 0.6, spawnGap * 1.2);
+  }
+
+  // update + draw mice
+  for (let i = mice.length - 1; i >= 0; i--) {
+    let m = mice[i];
+    let age = millis() - m.born;
+    if (age > m.life) {
+      // the mouse escaped!
+      mice.splice(i, 1);
+      score = 0;
+      missFlash = 12;
+      continue;
+    }
+    drawMouse(m, age);
+  }
+
+  // "+1" popups
+  for (let i = popups.length - 1; i >= 0; i--) {
+    let p = popups[i];
+    p.y -= 1;
+    p.life--;
+    noStroke();
+    fill(40, 120, 40, map(p.life, 0, 30, 0, 255));
+    textSize(22);
+    textAlign(CENTER, CENTER);
+    text("+1", p.x, p.y);
+    if (p.life <= 0) popups.splice(i, 1);
+  }
+
+  drawCat(mouseX, mouseY);
+  drawHUD();
+}
+
+function spawnMouse(lifeTime) {
+  mice.push({
+    x: random(50, width - 50),
+    y: random(90, height - 50),
+    size: random(26, 34),
+    born: millis(),
+    life: lifeTime,
+  });
+}
+
+function mousePressed() {
+  pounce = 8;
+  // check the topmost (most recent) mouse under the cursor
+  for (let i = mice.length - 1; i >= 0; i--) {
+    let m = mice[i];
+    if (dist(mouseX, mouseY, m.x, m.y) < m.size + 6) {
+      popups.push({ x: m.x, y: m.y - 20, life: 30 });
+      mice.splice(i, 1);
+      score++;
+      if (score > bestScore) bestScore = score;
+      break;
+    }
+  }
+}
+
+function drawMouse(m, age) {
+  let timeLeft = 1 - age / m.life; // 1 → 0
+  push();
+  translate(m.x, m.y);
+
+  // timer ring
+  noFill();
+  strokeWeight(4);
+  stroke(lerpColor(color(230, 60, 60), color(60, 190, 80), timeLeft));
+  arc(0, 0, m.size * 2.6, m.size * 2.6, -HALF_PI, -HALF_PI + TWO_PI * timeLeft);
+
+  // tail
+  noFill();
+  stroke(240, 150, 160);
+  strokeWeight(3);
+  bezier(-m.size * 0.8, 0, -m.size * 1.3, -8, -m.size * 1.2, 10, -m.size * 1.7, 2);
+
+  // ears
+  noStroke();
+  fill(170);
+  circle(-m.size * 0.2, -m.size * 0.7, m.size * 0.7);
+  circle(m.size * 0.35, -m.size * 0.7, m.size * 0.7);
+  fill(240, 170, 180);
+  circle(-m.size * 0.2, -m.size * 0.7, m.size * 0.4);
+  circle(m.size * 0.35, -m.size * 0.7, m.size * 0.4);
+
+  // body
+  fill(170);
+  ellipse(0, 0, m.size * 1.7, m.size * 1.3);
+
+  // eye + nose
+  fill(20);
+  circle(m.size * 0.35, -m.size * 0.1, 5);
+  fill(240, 120, 140);
+  circle(m.size * 0.85, 0, 6);
+  pop();
+}
+
+function drawCat(x, y) {
+  push();
+  translate(x, y);
+  let s = pounce > 0 ? 1.25 : 1;
+  if (pounce > 0) pounce--;
+  scale(s);
+
+  noStroke();
+  fill(240, 150, 60);
+  // ears
+  triangle(-26, -16, -12, -42, -2, -20);
+  triangle(26, -16, 12, -42, 2, -20);
+  fill(255, 200, 200);
+  triangle(-21, -20, -13, -34, -7, -21);
+  triangle(21, -20, 13, -34, 7, -21);
+  // head
+  fill(240, 150, 60);
+  ellipse(0, 0, 66, 56);
+  // stripes
+  stroke(200, 110, 30);
+  strokeWeight(3);
+  line(0, -27, 0, -16);
+  line(-9, -26, -7, -17);
+  line(9, -26, 7, -17);
+  // eyes
+  noStroke();
+  fill(255);
+  ellipse(-12, -3, 14, 16);
+  ellipse(12, -3, 14, 16);
+  fill(20);
+  ellipse(-12, -3, 6, 13);
+  ellipse(12, -3, 6, 13);
+  // nose + mouth
+  fill(240, 100, 130);
+  triangle(-4, 6, 4, 6, 0, 11);
+  noFill();
+  stroke(60);
+  strokeWeight(1.5);
+  line(0, 11, 0, 14);
+  arc(-5, 14, 10, 8, 0, PI);
+  arc(5, 14, 10, 8, 0, PI);
+  // whiskers
+  line(-18, 9, -42, 4);
+  line(-18, 13, -42, 15);
+  line(18, 9, 42, 4);
+  line(18, 13, 42, 15);
+  pop();
+}
+
+function drawHUD() {
+  noStroke();
+  fill(255, 255, 255, 190);
+  rect(0, 0, width, 56);
+  fill(40);
+  textAlign(LEFT, CENTER);
+  textSize(24);
+  text("🐭 Score: " + score, 16, 28);
+  textAlign(RIGHT, CENTER);
+  textSize(18);
+  text("Best: " + bestScore, width - 16, 28);
+}
+    </script>
+</body>
+</html>
